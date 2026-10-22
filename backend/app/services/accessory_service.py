@@ -144,6 +144,39 @@ def _get_accessory_image(
     return None
 
 
+def _extract_earrings(acc_img: Image.Image) -> Tuple[Image.Image, Image.Image]:
+    """
+    Intelligently inspects the earring image:
+    1. If the user uploaded a pair of earrings side-by-side (content aspect ratio W/H > 0.55):
+       Splits the image down the center into left and right earring components,
+       trims transparent borders, and returns (left_earring, right_earring).
+    2. If single earring (W/H <= 0.55):
+       Trims transparent borders, returns (earring, ImageOps.mirror(earring)).
+    """
+    bbox = acc_img.getbbox()
+    trimmed = acc_img.crop(bbox) if bbox else acc_img
+
+    tw, th = trimmed.size
+    aspect = tw / max(1, th)
+
+    if aspect > 0.55:
+        mid_x = tw // 2
+        left_half = trimmed.crop((0, 0, mid_x, th))
+        right_half = trimmed.crop((mid_x, 0, tw, th))
+
+        l_bbox = left_half.getbbox()
+        l_earring = left_half.crop(l_bbox) if l_bbox else left_half
+
+        r_bbox = right_half.getbbox()
+        r_earring = right_half.crop(r_bbox) if r_bbox else right_half
+
+        return l_earring, r_earring
+    else:
+        l_earring = trimmed
+        r_earring = ImageOps.mirror(trimmed)
+        return l_earring, r_earring
+
+
 def _detect_landmarks_two_stage(np_rgb: np.ndarray) -> Optional[Dict[int, np.ndarray]]:
     """
     Detects face landmarks on both close-up and full-body images using two stages:
@@ -261,31 +294,52 @@ def synthesize_accessory_tryon(
 
         # ── 2. EARRINGS ──────────────────────────────────────────────────────
         elif "earring" in subcat or subcat == "earrings":
-            # Landmarks: #234 (left earlobe), #454 (right earlobe), #152 (chin bottom), #10 (forehead)
-            p_left_ear = pt(234)
-            p_right_ear = pt(454)
+            # Landmarks: #234 (left cheek/jaw edge), #454 (right cheek/jaw edge), #152 (chin bottom), #10 (forehead)
+            p_left = pt(234)
+            p_right = pt(454)
             p_chin = pt(152)
             p_forehead = pt(10)
-            
+
             face_h = math.hypot(p_chin[0] - p_forehead[0], p_chin[1] - p_forehead[1])
+            face_w = math.hypot(p_right[0] - p_left[0], p_right[1] - p_left[1])
+
+            # Extract left and right earrings (handles pair upload vs single earring)
+            l_raw, r_raw = _extract_earrings(acc_img)
+
             scale_factor = override_scale if override_scale else 1.0
-            earring_h = int(face_h * 0.32 * scale_factor)
-            earring_w = int(earring_h * (acc_img.width / acc_img.height))
-            
-            resized_earring = acc_img.resize((max(8, earring_w), max(8, earring_h)), Image.Resampling.LANCZOS)
-            
-            # Left Earring
-            lx = int(p_left_ear[0] - (resized_earring.width / 2))
-            ly = int(p_left_ear[1] - 4)
-            canvas.alpha_composite(resized_earring, (lx, ly))
-            
-            # Right Earring (Mirrored for natural 3D symmetry)
-            right_earring = ImageOps.mirror(resized_earring)
-            rx = int(p_right_ear[0] - (right_earring.width / 2))
-            ry = int(p_right_ear[1] - 4)
-            canvas.alpha_composite(right_earring, (rx, ry))
-            
-            landmark_desc = "Earlobes (Mesh #234 & #454)"
+            earring_h = int(face_h * 0.44 * scale_factor)
+
+            l_w = int(earring_h * (l_raw.width / max(1, l_raw.height)))
+            r_w = int(earring_h * (r_raw.width / max(1, r_raw.height)))
+
+            l_ear = l_raw.resize((max(8, l_w), max(8, earring_h)), Image.Resampling.LANCZOS)
+            r_ear = r_raw.resize((max(8, r_w), max(8, earring_h)), Image.Resampling.LANCZOS)
+
+            # Anatomical earlobe position:
+            # FaceMesh #234 & #454 are on the cheek margin.
+            # Earlobes sit outward laterally (face_w * 0.26) and lower down (face_h * 0.16)
+            x_lobe_left = p_left[0] - (face_w * 0.26)
+            y_lobe_left = p_left[1] + (face_h * 0.16)
+            x_lobe_right = p_right[0] + (face_w * 0.26)
+            y_lobe_right = p_right[1] + (face_h * 0.16)
+
+            if override_x is not None:
+                x_lobe_left = override_x * pw
+                x_lobe_right = (1.0 - override_x) * pw
+            if override_y is not None:
+                y_lobe_left = override_y * ph
+                y_lobe_right = override_y * ph
+
+            # Hang earring downward from lobe (top-center anchored at lobe)
+            lx = int(x_lobe_left - (l_ear.width / 2))
+            ly = int(y_lobe_left)
+            canvas.alpha_composite(l_ear, (max(0, min(pw - l_ear.width, lx)), max(0, min(ph - l_ear.height, ly))))
+
+            rx = int(x_lobe_right - (r_ear.width / 2))
+            ry = int(y_lobe_right)
+            canvas.alpha_composite(r_ear, (max(0, min(pw - r_ear.width, rx)), max(0, min(ph - r_ear.height, ry))))
+
+            landmark_desc = "Earlobes (Anatomical Offset from Mesh #234 & #454)"
 
         # ── 3. NECKLACE ──────────────────────────────────────────────────────
         elif "necklace" in subcat:
