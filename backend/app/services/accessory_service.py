@@ -25,18 +25,21 @@ settings = get_settings()
 
 mp_face_detection = mp.solutions.face_detection
 mp_face_mesh = mp.solutions.face_mesh
+mp_pose = mp.solutions.pose
 
 ACCESSORY_ASSET_MAP = {
-    # Glasses
+    # Glasses & Sunglasses
     "item-acc-1": "aviator_sunglasses.png",
     "glasses_aviator": "aviator_sunglasses.png",
     "glasses_wayfarer": "wayfarer_glasses.png",
     "glasses": "aviator_sunglasses.png",
+    "sunglasses": "aviator_sunglasses.png",
     # Earrings
     "item-acc-2": "chandelier_earring.png",
     "earrings_chandelier": "chandelier_earring.png",
     "earrings_hoop": "gold_hoop.png",
     "earrings": "chandelier_earring.png",
+    "earring": "chandelier_earring.png",
     # Necklace
     "item-acc-3": "gold_necklace.png",
     "necklace_gold": "gold_necklace.png",
@@ -44,6 +47,22 @@ ACCESSORY_ASSET_MAP = {
     # Nose Pin
     "item-acc-4": "diamond_nose_pin.png",
     "nose_pin": "diamond_nose_pin.png",
+    "nosepin": "diamond_nose_pin.png",
+    # Bangles & Bracelets
+    "item-acc-5": "gold_bangles.png",
+    "bangles": "gold_bangles.png",
+    "bangle": "gold_bangles.png",
+    "bracelet": "gold_bangles.png",
+    "rings": "gold_bangles.png",
+    # Handbag
+    "item-acc-7": "leather_handbag.png",
+    "handbag": "leather_handbag.png",
+    "bags": "leather_handbag.png",
+    "bag": "leather_handbag.png",
+    # Watch
+    "item-acc-8": "luxury_watch.png",
+    "watch": "luxury_watch.png",
+    "wrist_watch": "luxury_watch.png",
 }
 
 
@@ -108,6 +127,12 @@ def _get_accessory_image(
             filename = "gold_necklace.png"
         elif "nose" in sub:
             filename = "diamond_nose_pin.png"
+        elif "bag" in sub or "handbag" in sub:
+            filename = "leather_handbag.png"
+        elif "bangle" in sub or "bracelet" in sub or "ring" in sub:
+            filename = "gold_bangles.png"
+        elif "watch" in sub:
+            filename = "luxury_watch.png"
 
     if filename:
         for base in [settings.catalogue_dir, os.path.join("backend", "catalogue")]:
@@ -312,12 +337,138 @@ def synthesize_accessory_tryon(
             canvas.alpha_composite(resized_pin, (paste_x, paste_y))
             landmark_desc = "Left Nostril Ala (Mesh #278)"
 
+        # ── 5. HANDBAG ───────────────────────────────────────────────────────
+        elif "bag" in subcat or "handbag" in subcat:
+            scale_factor = override_scale if override_scale else 1.0
+            p_chin = pt(152)
+            p_left_ear = pt(234)
+            p_right_ear = pt(454)
+            face_w = math.hypot(p_right_ear[0] - p_left_ear[0], p_right_ear[1] - p_left_ear[1])
+
+            # Try MediaPipe Pose for hip / shoulder placement
+            placed = False
+            try:
+                with mp_pose.Pose(static_image_mode=True, min_detection_confidence=0.3) as pose_detector:
+                    pose_res = pose_detector.process(np_img)
+                if pose_res.pose_landmarks:
+                    pl = pose_res.pose_landmarks.landmark
+                    # Check hip (#23 left, #24 right)
+                    if pl[23].visibility > 0.35 or pl[24].visibility > 0.35:
+                        hip = pl[23] if pl[23].visibility >= pl[24].visibility else pl[24]
+                        hx, hy = hip.x * pw, hip.y * ph
+                        target_w = int(pw * 0.36 * scale_factor)
+                        target_h = int(target_w * (acc_img.height / acc_img.width))
+                        resized_bag = acc_img.resize((max(20, target_w), max(20, target_h)), Image.Resampling.LANCZOS)
+                        paste_x = int(hx - resized_bag.width * 0.5)
+                        paste_y = int(hy - resized_bag.height * 0.25)
+                        canvas.alpha_composite(resized_bag, (max(0, paste_x), max(0, paste_y)))
+                        landmark_desc = "Hip Line Anchor (Pose #23/#24)"
+                        placed = True
+            except Exception as pe:
+                logger.debug("Pose detection fallback for handbag: %s", pe)
+
+            if not placed:
+                # Proportional torso / side placement
+                target_w = int(max(face_w * 2.2, pw * 0.34) * scale_factor)
+                target_h = int(target_w * (acc_img.height / acc_img.width))
+                resized_bag = acc_img.resize((max(20, target_w), max(20, target_h)), Image.Resampling.LANCZOS)
+                cx = override_x * pw if override_x is not None else pw * 0.64
+                cy = override_y * ph if override_y is not None else max(p_chin[1] + face_w * 1.5, ph * 0.52)
+                paste_x = int(cx - (resized_bag.width / 2))
+                paste_y = int(cy)
+                canvas.alpha_composite(resized_bag, (max(0, min(pw - resized_bag.width, paste_x)), max(0, min(ph - resized_bag.height, paste_y))))
+                landmark_desc = "Side-Torso Placement (Proportional)"
+
+        # ── 6. BANGLES & BRACELET ───────────────────────────────────────────
+        elif "bangle" in subcat or "bracelet" in subcat:
+            scale_factor = override_scale if override_scale else 1.0
+            p_chin = pt(152)
+            p_left_ear = pt(234)
+            p_right_ear = pt(454)
+            face_w = math.hypot(p_right_ear[0] - p_left_ear[0], p_right_ear[1] - p_left_ear[1])
+
+            placed = False
+            try:
+                with mp_pose.Pose(static_image_mode=True, min_detection_confidence=0.3) as pose_detector:
+                    pose_res = pose_detector.process(np_img)
+                if pose_res.pose_landmarks:
+                    pl = pose_res.pose_landmarks.landmark
+                    if pl[15].visibility > 0.35 or pl[16].visibility > 0.35:
+                        wrist = pl[15] if pl[15].visibility >= pl[16].visibility else pl[16]
+                        wx, wy = wrist.x * pw, wrist.y * ph
+                        target_w = int(pw * 0.22 * scale_factor)
+                        target_h = int(target_w * (acc_img.height / acc_img.width))
+                        resized_bangle = acc_img.resize((max(15, target_w), max(15, target_h)), Image.Resampling.LANCZOS)
+                        paste_x = int(wx - resized_bangle.width / 2)
+                        paste_y = int(wy - resized_bangle.height / 2)
+                        canvas.alpha_composite(resized_bangle, (max(0, min(pw - resized_bangle.width, paste_x)), max(0, min(ph - resized_bangle.height, paste_y))))
+                        landmark_desc = f"Wrist Bangle Anchor (Pose #{15 if wrist == pl[15] else 16})"
+                        placed = True
+            except Exception as pe:
+                logger.debug("Pose detection fallback for bangles: %s", pe)
+
+            if not placed:
+                target_w = int(max(face_w * 1.3, pw * 0.24) * scale_factor)
+                target_h = int(target_w * (acc_img.height / acc_img.width))
+                resized_bangle = acc_img.resize((max(15, target_w), max(15, target_h)), Image.Resampling.LANCZOS)
+                cx = override_x * pw if override_x is not None else pw * 0.72
+                cy = override_y * ph if override_y is not None else max(p_chin[1] + face_w * 1.8, ph * 0.68)
+                paste_x = int(cx - (resized_bangle.width / 2))
+                paste_y = int(cy)
+                canvas.alpha_composite(resized_bangle, (max(0, min(pw - resized_bangle.width, paste_x)), max(0, min(ph - resized_bangle.height, paste_y))))
+                landmark_desc = "Wrist / Forearm Level Placement"
+
+        # ── 7. WRIST WATCH ───────────────────────────────────────────────────
+        elif "watch" in subcat:
+            scale_factor = override_scale if override_scale else 1.0
+            p_chin = pt(152)
+            p_left_ear = pt(234)
+            p_right_ear = pt(454)
+            face_w = math.hypot(p_right_ear[0] - p_left_ear[0], p_right_ear[1] - p_left_ear[1])
+
+            placed = False
+            try:
+                with mp_pose.Pose(static_image_mode=True, min_detection_confidence=0.3) as pose_detector:
+                    pose_res = pose_detector.process(np_img)
+                if pose_res.pose_landmarks:
+                    pl = pose_res.pose_landmarks.landmark
+                    if pl[15].visibility > 0.35 or pl[16].visibility > 0.35:
+                        wrist = pl[15] if pl[15].visibility >= pl[16].visibility else pl[16]
+                        elbow = pl[13] if wrist == pl[15] else pl[14]
+                        wx, wy = wrist.x * pw, wrist.y * ph
+                        ex, ey = elbow.x * pw, elbow.y * ph
+                        angle_deg = -math.degrees(math.atan2(wy - ey, wx - ex)) + 90
+
+                        target_w = int(pw * 0.18 * scale_factor)
+                        target_h = int(target_w * (acc_img.height / acc_img.width))
+                        resized_watch = acc_img.resize((max(15, target_w), max(15, target_h)), Image.Resampling.LANCZOS)
+                        rotated_watch = resized_watch.rotate(angle_deg, resample=Image.Resampling.BICUBIC, expand=True)
+
+                        paste_x = int(wx - (rotated_watch.width / 2))
+                        paste_y = int(wy - (rotated_watch.height / 2))
+                        canvas.alpha_composite(rotated_watch, (max(0, min(pw - rotated_watch.width, paste_x)), max(0, min(ph - rotated_watch.height, paste_y))))
+                        landmark_desc = f"Wrist Chronometer Anchor (Pose #{15 if wrist == pl[15] else 16}, angle {angle_deg:.1f}°)"
+                        placed = True
+            except Exception as pe:
+                logger.debug("Pose detection fallback for watch: %s", pe)
+
+            if not placed:
+                target_w = int(max(face_w * 1.1, pw * 0.19) * scale_factor)
+                target_h = int(target_w * (acc_img.height / acc_img.width))
+                resized_watch = acc_img.resize((max(15, target_w), max(15, target_h)), Image.Resampling.LANCZOS)
+                cx = override_x * pw if override_x is not None else pw * 0.18
+                cy = override_y * ph if override_y is not None else max(p_chin[1] + face_w * 1.8, ph * 0.68)
+                paste_x = int(cx - (resized_watch.width / 2))
+                paste_y = int(cy)
+                canvas.alpha_composite(resized_watch, (max(0, min(pw - resized_watch.width, paste_x)), max(0, min(ph - resized_watch.height, paste_y))))
+                landmark_desc = "Wrist Level Anchor (Proportional)"
+
         else:
-            # Bags / Torso
+            # General accessory fallback
             target_w = int(pw * 0.35)
             target_h = int(target_w * (acc_img.height / acc_img.width))
-            resized_bag = acc_img.resize((target_w, target_h), Image.Resampling.LANCZOS)
-            canvas.alpha_composite(resized_bag, (int(pw * 0.65), int(ph * 0.55)))
+            resized_acc = acc_img.resize((target_w, target_h), Image.Resampling.LANCZOS)
+            canvas.alpha_composite(resized_acc, (int(pw * 0.65), int(ph * 0.55)))
             landmark_desc = "Torso / Hip Anchor"
 
     else:

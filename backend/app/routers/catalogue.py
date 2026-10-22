@@ -134,7 +134,7 @@ async def upload_custom_accessory(
     item_id = f"item-acc-custom-{uuid.uuid4().hex[:8]}"
     now = datetime.now(timezone.utc)
     sub = subcategory.lower().strip()
-    if sub not in ("glasses", "earrings", "necklace", "nose_pin", "bracelet", "rings", "bags"):
+    if sub not in ("glasses", "earrings", "necklace", "nose_pin", "bangles", "bracelet", "handbag", "bags", "watch", "rings"):
         sub = "glasses"
 
     doc = {
@@ -295,13 +295,13 @@ async def _seed_catalogue(col):
         },
         {
             "item_id": "item-acc-5",
-            "name": "Tennis Bracelet",
+            "name": "Ornate Gold Bangles",
             "category": "accessories",
-            "subcategory": "bracelet",
-            "description": "Elegant round-cut CZ diamond tennis bracelet in silver.",
+            "subcategory": "bangles",
+            "description": "Traditional 22k gold bangle stack with studded diamond accents.",
             "thumbnail": None,
-            "tags": ["jewelry", "bracelet", "silver"],
-            "color": "#BDBDBD",
+            "tags": ["jewelry", "bangles", "gold", "traditional"],
+            "color": "#FFD700",
             "is_active": True,
             "created_at": now,
             "updated_at": None,
@@ -321,13 +321,26 @@ async def _seed_catalogue(col):
         },
         {
             "item_id": "item-acc-7",
-            "name": "Structured Tote Bag",
+            "name": "Leather Luxury Handbag",
             "category": "accessories",
-            "subcategory": "bags",
-            "description": "Minimalist structured vegan leather tote in camel.",
+            "subcategory": "handbag",
+            "description": "Structured cognac leather designer handbag with gold turn-lock buckle.",
             "thumbnail": None,
-            "tags": ["bags", "tote", "leather", "camel"],
-            "color": "#C19A6B",
+            "tags": ["bags", "handbag", "leather", "luxury"],
+            "color": "#8D5B4C",
+            "is_active": True,
+            "created_at": now,
+            "updated_at": None,
+        },
+        {
+            "item_id": "item-acc-8",
+            "name": "Chronometer Gold Watch",
+            "category": "accessories",
+            "subcategory": "watch",
+            "description": "Classic luxury chronometer wrist watch with 18k gold link bracelet.",
+            "thumbnail": None,
+            "tags": ["watch", "luxury", "gold", "wrist_watch"],
+            "color": "#D4AF37",
             "is_active": True,
             "created_at": now,
             "updated_at": None,

@@ -21,26 +21,29 @@ import { Button } from '@/components/ui/Button';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import { api, getApiBaseUrl } from '@/services/api';
 
-type SubCatFilter = 'all' | 'glasses' | 'earrings' | 'necklace' | 'bracelet' | 'rings' | 'nose_pin' | 'bags';
+type SubCatFilter = 'all' | 'earrings' | 'necklace' | 'nose_pin' | 'handbag' | 'glasses' | 'bangles' | 'watch';
 
 const SUBCAT_LABEL: Record<string, string> = {
-  glasses: '👓 Glasses',
   earrings: '✨ Earrings',
   necklace: '📿 Necklace',
-  bracelet: '💎 Bracelet',
-  rings: '💍 Rings',
   nose_pin: '🌟 Nose Pin',
-  bags: '👜 Bags',
+  handbag: '👜 Handbag',
+  glasses: '👓 Glasses',
+  bangles: '💫 Bangles',
+  watch: '⌚ Watch',
 };
 
 const SUBCAT_EMOJI: Record<string, string> = {
-  glasses: '👓',
   earrings: '✨',
   necklace: '📿',
-  bracelet: '💎',
-  rings: '💍',
   nose_pin: '🌟',
+  handbag: '👜',
+  glasses: '👓',
+  bangles: '💫',
+  watch: '⌚',
+  bracelet: '💫',
   bags: '👜',
+  rings: '💍',
 };
 
 interface StyleItem {
@@ -66,7 +69,9 @@ export default function AccessoriesScreen() {
   // Manual accessory upload modal states
   const [showAddModal, setShowAddModal] = useState(false);
   const [newAccName, setNewAccName] = useState('');
-  const [newAccCategory, setNewAccCategory] = useState<'glasses' | 'earrings' | 'necklace' | 'nose_pin'>('glasses');
+  const [newAccCategory, setNewAccCategory] = useState<
+    'earrings' | 'necklace' | 'nose_pin' | 'handbag' | 'glasses' | 'bangles' | 'watch'
+  >('earrings');
   const [uploadingAcc, setUploadingAcc] = useState(false);
 
   const baseUrl = getApiBaseUrl();
@@ -233,14 +238,14 @@ export default function AccessoriesScreen() {
           <View style={styles.addAccTextWrap}>
             <Text style={styles.addAccTitle}>+ Photograph Your Own Accessory</Text>
             <Text style={styles.addAccDesc}>
-              Upload a photo of your sunglasses, earrings, necklace, or nose pin
+              Upload earrings, necklace, nose pin, handbag, glasses, bangles, or watch
             </Text>
           </View>
           <Text style={styles.addAccChevron}>→</Text>
         </TouchableOpacity>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-          {(['all', 'glasses', 'earrings', 'necklace', 'bracelet', 'rings', 'nose_pin', 'bags'] as SubCatFilter[]).map((key) => {
+          {(['all', 'earrings', 'necklace', 'nose_pin', 'handbag', 'glasses', 'bangles', 'watch'] as SubCatFilter[]).map((key) => {
             const active = subFilter === key;
             return (
               <TouchableOpacity
@@ -302,13 +307,16 @@ export default function AccessoriesScreen() {
         {selectedId && (() => {
           const item = items.find((i) => i.item_id === selectedId);
           const anchorMap: Record<string, string> = {
-            glasses: 'Eye Bridge (Facial Mesh #168)',
-            earrings: 'Earlobes (Mesh #234, #454)',
-            necklace: 'Collarbones (Pose #11, #12)',
-            nose_pin: 'Nostril Curve (Mesh #278)',
+            earrings: 'Earlobes (Facial Mesh #234 & #454)',
+            necklace: 'Collarbones / Neck Base (Mesh #152)',
+            nose_pin: 'Nostril Ala Curve (Mesh #278)',
+            handbag: 'Hip Line / Shoulder Sling (Pose #23/#11)',
+            glasses: 'Eye Bridge Midpoint (Facial Mesh #168)',
+            bangles: 'Wrist / Lower Forearm (Pose #15/#16)',
+            watch: 'Wrist Chronometer Axis (Pose #15/#16)',
+            bracelet: 'Wrist Point (Pose #15/#16)',
+            bags: 'Torso / Hip Line (Pose #23)',
             rings: 'Finger Region',
-            bracelet: 'Wrist Pose Point',
-            bags: 'Shoulder Pose (#11)',
           };
           return item ? (
             <Card style={styles.descCard} variant="outlined">
@@ -357,10 +365,13 @@ export default function AccessoriesScreen() {
             <View style={styles.modalCatRow}>
               {(
                 [
-                  { key: 'glasses', label: '👓 Glasses' },
                   { key: 'earrings', label: '✨ Earrings' },
                   { key: 'necklace', label: '📿 Necklace' },
                   { key: 'nose_pin', label: '🌟 Nose Pin' },
+                  { key: 'handbag', label: '👜 Handbag' },
+                  { key: 'glasses', label: '👓 Glasses' },
+                  { key: 'bangles', label: '💫 Bangles' },
+                  { key: 'watch', label: '⌚ Watch' },
                 ] as const
               ).map((cat) => {
                 const active = newAccCategory === cat.key;
