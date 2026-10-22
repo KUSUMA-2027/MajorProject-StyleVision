@@ -307,7 +307,7 @@ def synthesize_accessory_tryon(
             l_raw, r_raw = _extract_earrings(acc_img)
 
             scale_factor = override_scale if override_scale else 1.0
-            earring_h = int(face_h * 0.44 * scale_factor)
+            earring_h = int(face_h * 0.48 * scale_factor)
 
             l_w = int(earring_h * (l_raw.width / max(1, l_raw.height)))
             r_w = int(earring_h * (r_raw.width / max(1, r_raw.height)))
@@ -316,12 +316,14 @@ def synthesize_accessory_tryon(
             r_ear = r_raw.resize((max(8, r_w), max(8, earring_h)), Image.Resampling.LANCZOS)
 
             # Anatomical earlobe position:
-            # FaceMesh #234 & #454 are on the cheek margin.
-            # Earlobes sit outward laterally (face_w * 0.26) and lower down (face_h * 0.16)
-            x_lobe_left = p_left[0] - (face_w * 0.26)
-            y_lobe_left = p_left[1] + (face_h * 0.16)
-            x_lobe_right = p_right[0] + (face_w * 0.26)
-            y_lobe_right = p_right[1] + (face_h * 0.16)
+            # FaceMesh #234 & #454 are at the cheek/jaw boundary (tragus height).
+            # The actual earlobes are located at:
+            # - Left earlobe: outward laterally by face_w * 0.22, vertically at p_left[1] + (face_h * 0.04)
+            # - Right earlobe: outward laterally by face_w * 0.23, vertically at p_right[1] + (face_h * 0.04)
+            x_lobe_left = p_left[0] - (face_w * 0.22)
+            y_lobe_left = p_left[1] + (face_h * 0.04)
+            x_lobe_right = p_right[0] + (face_w * 0.23)
+            y_lobe_right = p_right[1] + (face_h * 0.04)
 
             if override_x is not None:
                 x_lobe_left = override_x * pw
@@ -330,16 +332,33 @@ def synthesize_accessory_tryon(
                 y_lobe_left = override_y * ph
                 y_lobe_right = override_y * ph
 
-            # Hang earring downward from lobe (top-center anchored at lobe)
+            # Step 1: Clean / Inpaint existing earrings at the earlobes so user's old jewelry doesn't show through
+            try:
+                cv_bgr = cv2.cvtColor(np_img, cv2.COLOR_RGB2BGR)
+                ear_mask = np.zeros((ph, pw), dtype=np.uint8)
+                inpaint_rx = max(4, int(face_w * 0.10))
+                inpaint_ry = max(6, int(face_h * 0.14))
+
+                cv2.ellipse(ear_mask, (int(x_lobe_left), int(y_lobe_left + inpaint_ry * 0.15)), (inpaint_rx, inpaint_ry), 0, 0, 360, 255, -1)
+                cv2.ellipse(ear_mask, (int(x_lobe_right), int(y_lobe_right + inpaint_ry * 0.15)), (inpaint_rx, inpaint_ry), 0, 0, 360, 255, -1)
+
+                inpainted_bgr = cv2.inpaint(cv_bgr, ear_mask, inpaintRadius=5, flags=cv2.INPAINT_TELEA)
+                inpainted_rgb = cv2.cvtColor(inpainted_bgr, cv2.COLOR_BGR2RGB)
+                canvas = Image.fromarray(inpainted_rgb).convert("RGBA")
+            except Exception as e:
+                logger.debug("Earring inpainting fallback: %s", e)
+
+            # Step 2: Composite new earrings anchored directly at the earlobe piercing points
+            # Top of earring is anchored right at the lobe
             lx = int(x_lobe_left - (l_ear.width / 2))
-            ly = int(y_lobe_left)
+            ly = int(y_lobe_left - (l_ear.height * 0.05))
             canvas.alpha_composite(l_ear, (max(0, min(pw - l_ear.width, lx)), max(0, min(ph - l_ear.height, ly))))
 
             rx = int(x_lobe_right - (r_ear.width / 2))
-            ry = int(y_lobe_right)
+            ry = int(y_lobe_right - (r_ear.height * 0.05))
             canvas.alpha_composite(r_ear, (max(0, min(pw - r_ear.width, rx)), max(0, min(ph - r_ear.height, ry))))
 
-            landmark_desc = "Earlobes (Anatomical Offset from Mesh #234 & #454)"
+            landmark_desc = "Earlobes (Anatomical Earlobe Anchor & Clean Removal of Existing Jewelry)"
 
         # ── 3. NECKLACE ──────────────────────────────────────────────────────
         elif "necklace" in subcat:
