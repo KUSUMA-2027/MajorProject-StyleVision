@@ -318,12 +318,12 @@ def synthesize_accessory_tryon(
             # Anatomical earlobe position:
             # FaceMesh #234 & #454 are at the cheek/jaw boundary (tragus height).
             # The actual earlobes are located at:
-            # - Left earlobe: outward laterally by face_w * 0.22, vertically at p_left[1] + (face_h * 0.04)
-            # - Right earlobe: outward laterally by face_w * 0.23, vertically at p_right[1] + (face_h * 0.04)
-            x_lobe_left = p_left[0] - (face_w * 0.22)
-            y_lobe_left = p_left[1] + (face_h * 0.04)
-            x_lobe_right = p_right[0] + (face_w * 0.23)
-            y_lobe_right = p_right[1] + (face_h * 0.04)
+            # - Left earlobe: outward laterally by face_w * 0.25, vertically at p_left[1] + (face_h * 0.08)
+            # - Right earlobe: outward laterally by face_w * 0.29, vertically at p_right[1] + (face_h * 0.08)
+            x_lobe_left = p_left[0] - (face_w * 0.25)
+            y_lobe_left = p_left[1] + (face_h * 0.08)
+            x_lobe_right = p_right[0] + (face_w * 0.29)
+            y_lobe_right = p_right[1] + (face_h * 0.08)
 
             if override_x is not None:
                 x_lobe_left = override_x * pw
@@ -332,15 +332,15 @@ def synthesize_accessory_tryon(
                 y_lobe_left = override_y * ph
                 y_lobe_right = override_y * ph
 
-            # Step 1: Clean / Inpaint existing earrings at the earlobes so user's old jewelry doesn't show through
+            # Step 1: Cleanly delete / inpaint user's existing earrings from earlobes
             try:
                 cv_bgr = cv2.cvtColor(np_img, cv2.COLOR_RGB2BGR)
                 ear_mask = np.zeros((ph, pw), dtype=np.uint8)
-                inpaint_rx = max(4, int(face_w * 0.10))
-                inpaint_ry = max(6, int(face_h * 0.14))
+                inpaint_rx = max(7, int(face_w * 0.14))
+                inpaint_ry = max(11, int(face_h * 0.20))
 
-                cv2.ellipse(ear_mask, (int(x_lobe_left), int(y_lobe_left + inpaint_ry * 0.15)), (inpaint_rx, inpaint_ry), 0, 0, 360, 255, -1)
-                cv2.ellipse(ear_mask, (int(x_lobe_right), int(y_lobe_right + inpaint_ry * 0.15)), (inpaint_rx, inpaint_ry), 0, 0, 360, 255, -1)
+                cv2.ellipse(ear_mask, (int(x_lobe_left), int(y_lobe_left + inpaint_ry * 0.10)), (inpaint_rx, inpaint_ry), 0, 0, 360, 255, -1)
+                cv2.ellipse(ear_mask, (int(x_lobe_right), int(y_lobe_right + inpaint_ry * 0.10)), (inpaint_rx, inpaint_ry), 0, 0, 360, 255, -1)
 
                 inpainted_bgr = cv2.inpaint(cv_bgr, ear_mask, inpaintRadius=5, flags=cv2.INPAINT_TELEA)
                 inpainted_rgb = cv2.cvtColor(inpainted_bgr, cv2.COLOR_BGR2RGB)
@@ -348,17 +348,16 @@ def synthesize_accessory_tryon(
             except Exception as e:
                 logger.debug("Earring inpainting fallback: %s", e)
 
-            # Step 2: Composite new earrings anchored directly at the earlobe piercing points
-            # Top of earring is anchored right at the lobe
+            # Step 2: Composite reference earrings hanging directly from earlobes
             lx = int(x_lobe_left - (l_ear.width / 2))
-            ly = int(y_lobe_left - (l_ear.height * 0.05))
+            ly = int(y_lobe_left - 2)
             canvas.alpha_composite(l_ear, (max(0, min(pw - l_ear.width, lx)), max(0, min(ph - l_ear.height, ly))))
 
             rx = int(x_lobe_right - (r_ear.width / 2))
-            ry = int(y_lobe_right - (r_ear.height * 0.05))
+            ry = int(y_lobe_right - 2)
             canvas.alpha_composite(r_ear, (max(0, min(pw - r_ear.width, rx)), max(0, min(ph - r_ear.height, ry))))
 
-            landmark_desc = "Earlobes (Anatomical Earlobe Anchor & Clean Removal of Existing Jewelry)"
+            landmark_desc = "Earlobes (Clean Inpainting of Old Jewelry & Direct Attachment)"
 
         # ── 3. NECKLACE ──────────────────────────────────────────────────────
         elif "necklace" in subcat:
